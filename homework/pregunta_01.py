@@ -1,73 +1,46 @@
-# pylint: disable=import-outside-toplevel
-# pylint: disable=line-too-long
-# flake8: noqa
 """
 Escriba el codigo que ejecute la accion solicitada en cada pregunta.
 """
 
+# pylint: disable=import-outside-toplevel
+
+from io import StringIO
+import re
+import pandas as pd # type: ignore
 
 def pregunta_01():
     """
-    La información requerida para este laboratio esta almacenada en el
-    archivo "files/input.zip" ubicado en la carpeta raíz.
-    Descomprima este archivo.
+    Construya y retorne un dataframe de Pandas a partir del archivo
+    'files/input/clusters_report.txt'. Los requierimientos son los siguientes:
 
-    Como resultado se creara la carpeta "input" en la raiz del
-    repositorio, la cual contiene la siguiente estructura de archivos:
-
-
-    ```
-    train/
-        negative/
-            0000.txt
-            0001.txt
-            ...
-        positive/
-            0000.txt
-            0001.txt
-            ...
-        neutral/
-            0000.txt
-            0001.txt
-            ...
-    test/
-        negative/
-            0000.txt
-            0001.txt
-            ...
-        positive/
-            0000.txt
-            0001.txt
-            ...
-        neutral/
-            0000.txt
-            0001.txt
-            ...
-    ```
-
-    A partir de esta informacion escriba el código que permita generar
-    dos archivos llamados "train_dataset.csv" y "test_dataset.csv". Estos
-    archivos deben estar ubicados en la carpeta "output" ubicada en la raiz
-    del repositorio.
-
-    Estos archivos deben tener la siguiente estructura:
-
-    * phrase: Texto de la frase. hay una frase por cada archivo de texto.
-    * sentiment: Sentimiento de la frase. Puede ser "positive", "negative"
-      o "neutral". Este corresponde al nombre del directorio donde se
-      encuentra ubicado el archivo.
-
-    Cada archivo tendria una estructura similar a la siguiente:
-
-    ```
-    |    | phrase                                                                                                                                                                 | target   |
-    |---:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------|
-    |  0 | Cardona slowed her vehicle , turned around and returned to the intersection , where she called 911                                                                     | neutral  |
-    |  1 | Market data and analytics are derived from primary and secondary research                                                                                              | neutral  |
-    |  2 | Exel is headquartered in Mantyharju in Finland                                                                                                                         | neutral  |
-    |  3 | Both operating profit and net sales for the three-month period increased , respectively from EUR16 .0 m and EUR139m , as compared to the corresponding quarter in 2006 | positive |
-    |  4 | Tampere Science Parks is a Finnish company that owns , leases and builds office properties and it specialises in facilities for technology-oriented businesses         | neutral  |
-    ```
+    - El dataframe tiene la misma estructura que el archivo original.
+    - Los nombres de las columnas deben ser en minusculas, reemplazando los
+      espacios por guiones bajos.
+    - Las palabras clave deben estar separadas por coma y con un solo
+      espacio entre palabra y palabra.
 
 
     """
+    with open("files/input/clusters_report.txt") as fp:
+        col1 = re.sub(r"\s{2,}", "\t", fp.readline().strip()).split("\t")
+        col2 = re.sub(r"\s{2,}", "\t", fp.readline()).split("\t")
+        fp.readline()
+        fp.readline()
+
+    columns = [str(col1[i] + " " + col2[i]).strip() if len(col2) > i else col1[i] for i in range(len(col1))]
+    cluster, cantidad, porcentaje, principales = [col.lower().replace(" ", "_") for col in columns]
+
+    df = pd.read_fwf("files/input/clusters_report.txt", skiprows=4, header=None)
+    df.columns = [cluster, cantidad, porcentaje, principales]
+
+    df = df.ffill()
+
+    df[porcentaje] = df[porcentaje].str.replace(",", ".").str.replace(" %", "").astype(float)
+
+    df = df.groupby([cluster, cantidad, porcentaje])[principales].agg(lambda x: x).reset_index(name=principales)
+
+    df[principales] = df[principales].str.join(" ").str.replace(r"\s{2,}", " ", regex=True).str.replace(".", "").str.strip()
+
+    return df
+
+print(pregunta_01())
