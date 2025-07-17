@@ -1,46 +1,64 @@
+# pylint: disable=import-outside-toplevel
+# pylint: disable=line-too-long
+# flake8: noqa
 """
 Escriba el codigo que ejecute la accion solicitada en cada pregunta.
 """
 
-# pylint: disable=import-outside-toplevel
 
-from io import StringIO
-import re
-import pandas as pd # type: ignore
+
+import os
+import shutil
+import zipfile
+import pandas as pd
+from glob import glob
+
 
 def pregunta_01():
-    """
-    Construya y retorne un dataframe de Pandas a partir del archivo
-    'files/input/clusters_report.txt'. Los requierimientos son los siguientes:
+    
+    # ================================ #
+    # Paso 1: Limpiar y descomprimir
+    # ================================ #
+    rutaC = "files/input.zip"
+    rutaD = "input"
 
-    - El dataframe tiene la misma estructura que el archivo original.
-    - Los nombres de las columnas deben ser en minusculas, reemplazando los
-      espacios por guiones bajos.
-    - Las palabras clave deben estar separadas por coma y con un solo
-      espacio entre palabra y palabra.
+    if os.path.exists(rutaD):
+        shutil.rmtree(rutaD)
+
+    with zipfile.ZipFile(rutaC, "r") as zip_ref:
+        zip_ref.extractall(".")
+
+    # ================================ #
+    # Paso 2: Crear carpeta de salida
+    # ================================ #
+    os.makedirs("files/output", exist_ok=True)
+
+    # ================================ #
+    # Paso 3: Procesar datos
+    # ================================ #
+    def procesarDatos(tipo):
+        rutaBase = os.path.join(rutaD, tipo)
+        datos = []
+        for sentimiento in ["positive", "negative", "neutral"]:
+            carpeta = os.path.join(rutaBase, sentimiento)
+            for nombreArchivo in sorted(os.listdir(carpeta)):
+                rutaArchivo = os.path.join(carpeta, nombreArchivo)
+                with open(rutaArchivo, encoding="utf-8") as f:
+                    texto = f.read().strip()
+                    datos.append({
+                        "phrase": texto,
+                        "target": sentimiento
+                    })
+        return pd.DataFrame(datos)
 
 
-    """
-    with open("files/input/clusters_report.txt") as fp:
-        col1 = re.sub(r"\s{2,}", "\t", fp.readline().strip()).split("\t")
-        col2 = re.sub(r"\s{2,}", "\t", fp.readline()).split("\t")
-        fp.readline()
-        fp.readline()
+   
+    df_train = procesarDatos("train")
+    df_test = procesarDatos("test")
 
-    columns = [str(col1[i] + " " + col2[i]).strip() if len(col2) > i else col1[i] for i in range(len(col1))]
-    cluster, cantidad, porcentaje, principales = [col.lower().replace(" ", "_") for col in columns]
+    df_train.to_csv(os.path.join("files/output", "train_dataset.csv"), index=False)
+    df_test.to_csv(os.path.join("files/output", "test_dataset.csv"), index=False)
 
-    df = pd.read_fwf("files/input/clusters_report.txt", skiprows=4, header=None)
-    df.columns = [cluster, cantidad, porcentaje, principales]
 
-    df = df.ffill()
-
-    df[porcentaje] = df[porcentaje].str.replace(",", ".").str.replace(" %", "").astype(float)
-
-    df = df.groupby([cluster, cantidad, porcentaje])[principales].agg(lambda x: x).reset_index(name=principales)
-
-    df[principales] = df[principales].str.join(" ").str.replace(r"\s{2,}", " ", regex=True).str.replace(".", "").str.strip()
-
-    return df
-
-print(pregunta_01())
+if __name__ == "__main__":
+    pregunta_01()
